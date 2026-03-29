@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ระบบยาหมดอายุ รพ.สต. – รพ.แม่แตง</title>
+<link rel="stylesheet" href="style.css">
+<style>
+/* ── Login Modal ─────────────────────────────── */
+.login-overlay { position:fixed;inset:0;background:linear-gradient(135deg,#0891b2,#0d9488);z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1rem; }
+.login-card { background:#fff;border-radius:20px;padding:2.2rem 2rem;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,.25); }
+.login-logo { text-align:center;margin-bottom:1.5rem; }
+.login-icon { width:72px;height:72px;background:#f0f9ff;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto .8rem;font-size:2rem; }
+.login-logo h1 { font-size:1.15rem;font-weight:800;color:#1e293b; }
+.login-logo p { font-size:.82rem;color:#64748b;margin-top:.3rem; }
+
+/* ── Calendar ────────────────────────────────── */
+.main-grid { display:grid;grid-template-columns:1fr 320px;gap:1rem; }
+@media(max-width:900px){ .main-grid { grid-template-columns:1fr; } }
+
+.cal-card { background:#fff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,.08);overflow:hidden; }
+.cal-header { background:var(--teal);color:#fff;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between; }
+.cal-header h2 { font-size:1.3rem;font-weight:800; }
+.cal-header .year { font-size:.85rem;opacity:.8; }
+.cal-nav { background:rgba(255,255,255,.2);border:none;color:#fff;width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:1.1rem;display:flex;align-items:center;justify-content:center; }
+.cal-nav:hover { background:rgba(255,255,255,.35); }
+
+.cal-grid { padding:.8rem; }
+.cal-days-header { display:grid;grid-template-columns:repeat(7,1fr);text-align:center;margin-bottom:.3rem; }
+.cal-days-header span { font-size:.78rem;font-weight:700;color:var(--sub);padding:.3rem 0; }
+.cal-days-header span:first-child { color:#dc2626; }
+.cal-days-header span:last-child { color:#2563eb; }
+
+.cal-cells { display:grid;grid-template-columns:repeat(7,1fr);gap:2px; }
+.cal-cell { min-height:72px;padding:.3rem .25rem;border-radius:8px;cursor:pointer;transition:.15s;position:relative; }
+.cal-cell:hover { background:#f0f9ff; }
+.cal-cell.today { background:#ecfdf5; }
+.cal-cell.today .cal-date { background:var(--teal);color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;margin:0 auto; }
+.cal-cell.other-month .cal-date { color:#cbd5e1; }
+.cal-cell.sunday .cal-date { color:#dc2626; }
+.cal-cell.saturday .cal-date { color:#2563eb; }
+.cal-date { font-size:.82rem;font-weight:700;text-align:center;margin-bottom:.2rem; }
+.cal-date-thai { font-size:.65rem;color:var(--sub);text-align:center;margin-bottom:.2rem; }
+
+.cal-events { display:flex;flex-direction:column;gap:1px; }
+.cal-event { font-size:.62rem;padding:.1rem .3rem;border-radius:4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer;font-weight:600; }
+.ev-expired { background:#fee2e2;color:#7f1d1d; }
+.ev-w1      { background:#fecaca;color:#7f1d1d; }
+.ev-m1      { background:#fed7aa;color:#92400e; }
+.ev-m6      { background:#d1fae5;color:#065f46; }
+
+/* ── Legend ──────────────────────────────────── */
+.legend { display:flex;gap:.8rem;flex-wrap:wrap;padding:.6rem 1rem;border-top:1px solid var(--border);font-size:.75rem; }
+.legend-item { display:flex;align-items:center;gap:.3rem; }
+.legend-dot { width:10px;height:10px;border-radius:50%; }
+
+/* ── Right panel ─────────────────────────────── */
+.side-card { background:#fff;border-radius:14px;box-shadow:0 2px 12px rgba(0,0,0,.08);padding:1.1rem;margin-bottom:.9rem; }
+.side-title { font-size:.9rem;font-weight:800;color:var(--teal);margin-bottom:.8rem;display:flex;align-items:center;gap:.4rem; }
+.stat-row { display:flex;gap:.5rem;margin-bottom:.6rem; }
+.stat-box { flex:1;border-radius:10px;padding:.65rem .5rem;text-align:center;cursor:pointer;transition:.15s; }
+.stat-box:hover { opacity:.85; }
+.stat-box .n { font-size:1.3rem;font-weight:800; }
+.stat-box .l { font-size:.68rem;margin-top:.15rem; }
+.sb-expired { background:#fee2e2;color:#7f1d1d; }
+.sb-w1      { background:#fecaca;color:#7f1d1d; }
+.sb-m1      { background:#fed7aa;color:#92400e; }
+
+.upcoming-item { padding:.6rem 0;border-bottom:1px solid var(--border);display:flex;gap:.6rem;align-items:flex-start;cursor:pointer; }
+.upcoming-item:last-child { border-bottom:none; }
+.up-icon { font-size:1rem;flex-shrink:0; }
+.up-name { font-size:.83rem;font-weight:700;line-height:1.3; }
+.up-meta { font-size:.73rem;color:var(--sub);margin-top:.1rem; }
+.up-badge { font-size:.7rem;font-weight:700;padding:.1rem .4rem;border-radius:8px;white-space:nowrap;flex-shrink:0;margin-top:.15rem; }
+
+.today-box { background:var(--teal);color:#fff;border-radius:12px;padding:.9rem 1rem; }
+.today-box .t-date { font-size:1.1rem;font-weight:800; }
+.today-box .t-sub { font-size:.78rem;opacity:.8; }
+
+/* ── Event popup ─────────────────────────────── */
+.popup-bg { position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:300;display:none;align-items:flex-end;justify-content:center; }
+.popup-bg.show { display:flex; }
+@media(min-width:600px){ .popup-bg { align-items:center;padding:1rem; } }
+.popup { background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:460px;max-height:80vh;overflow-y:auto;padding:1.3rem; }
+@media(min-width:600px){ .popup { border-radius:16px; } }
+.popup h3 { font-size:.95rem;font-weight:800;color:var(--teal);margin-bottom:.8rem; }
+.popup-item { padding:.6rem 0;border-bottom:1px solid var(--border);display:flex;gap:.6rem; }
+.popup-item:last-child { border-bottom:none; }
+</style>
+</head>
+<body>
+
+<!-- Login overlay -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-icon">🏡</div>
+      <h1>ระบบยาหมดอายุ รพ.สต.</h1>
+      <p id="loginSubtitle">ภายใต้การดูแลของ รพ.แม่แตง</p>
+    </div>
+    <div class="alert alert-err" id="loginErr"></div>
+    <div class="field">
+      <label>Username</label>
+      <input type="text" id="loginU" placeholder="กรอก Username" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="loginP" placeholder="กรอก Password" autocomplete="current-password">
+    </div>
+    <button class="btn btn-teal" style="width:100%;justify-content:center;padding:.8rem;font-size:1rem" id="loginBtn" onclick="doLogin()">
+      เข้าสู่ระบบ
+    </button>
+  </div>
+  <div style="color:rgba(255,255,255,.7);font-size:.8rem;margin-top:1.2rem">© 2026 รพ.แม่แตง</div>
+</div>
+
+<!-- Main app (hidden until login) -->
+<div id="mainApp" style="display:none">
+  <div class="topbar">
+    <h1>🏡 ระบบยาหมดอายุ</h1>
+    <span class="pcu-tag" id="pcuTag"></span>
+    <a href="dashboard.html" class="tb-btn">📋 รายการ</a>
+    <a href="form.html" class="tb-btn">+ เพิ่ม</a>
+    <a href="report.html" class="tb-btn">📊 รายงาน</a>
+    <a href="exchange.html" class="tb-btn">🔄 แลกยา</a>
+    <span id="adminBtnTop" style="display:none"><a href="admin.html" class="tb-btn">⚙️ Admin</a></span>
+    <button class="tb-btn danger" onclick="doLogout()">ออก</button>
+  </div>
+
+  <div class="wrap">
+    <div class="main-grid">
+      <!-- ── Calendar ── -->
+      <div>
+        <div class="cal-card">
+          <div class="cal-header">
+            <button class="cal-nav" onclick="changeMonth(-1)">◀</button>
+            <div style="text-align:center">
+              <div class="cal-header h2" id="calMonthName"></div>
+              <div class="cal-header year" id="calYearName"></div>
+            </div>
+            <button class="cal-nav" onclick="changeMonth(1)">▶</button>
+          </div>
+          <div class="cal-grid">
+            <div class="cal-days-header">
+              <span>อา</span><span>จ</span><span>อ</span><span>พ</span>
+              <span>พฤ</span><span>ศ</span><span>ส</span>
+            </div>
+            <div class="cal-cells" id="calCells"></div>
+          </div>
+          <div class="legend">
+            <div class="legend-item"><div class="legend-dot" style="background:#dc2626"></div>หมดอายุแล้ว</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#f97316"></div>≤ 7 วัน</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#eab308"></div>≤ 30 วัน</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#16a34a"></div>ปลอดภัย</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Right panel ── -->
+      <div>
+        <!-- Today -->
+        <div class="side-card" style="padding:0;overflow:hidden">
+          <div class="today-box">
+            <div class="t-date" id="todayThai"></div>
+            <div class="t-sub" id="todayEng"></div>
+          </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="side-card">
+          <div class="side-title">📊 สรุปสถานะ</div>
+          <div class="stat-row">
+            <div class="stat-box sb-expired" onclick="goFilter('expired')">
+              <div class="n" id="sExp">–</div>
+              <div class="l">หมดอายุแล้ว</div>
+            </div>
+            <div class="stat-box sb-w1" onclick="goFilter('w1')">
+              <div class="n" id="sW1">–</div>
+              <div class="l">≤ 7 วัน</div>
+            </div>
+            <div class="stat-box sb-m1" onclick="goFilter('m1')">
+              <div class="n" id="sM1">–</div>
+              <div class="l">≤ 30 วัน</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Upcoming -->
+        <div class="side-card">
+          <div class="side-title">⏰ กำลังจะหมดอายุ</div>
+          <div id="upcomingList">
+            <div style="text-align:center;padding:1rem;color:var(--sub);font-size:.85rem">⏳ กำลังโหลด...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Event popup -->
+<div class="popup-bg" id="evPopup" onclick="closePopup(event)">
+  <div class="popup">
+    <h3 id="popTitle"></h3>
+    <div id="popContent"></div>
+    <button class="btn btn-gray" style="margin-top:.8rem;width:100%;justify-content:center" onclick="document.getElementById('evPopup').classList.remove('show')">ปิด</button>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script src="api.js"></script>
+<script>
+const THAI_MONTHS = ['','มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
+                     'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+const THAI_MONTHS_SHORT = ['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.',
+                           'ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+const DAYS_EN = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+let curYear, curMonth;
+let allItems = [];
+
+// ── Init ──────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  const sess = getSession();
+  if (sess) {
+    showApp(sess);
+  } else {
+    document.getElementById('loginOverlay').style.display = 'flex';
+  }
+  document.getElementById('loginP').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
+  });
+});
+
+function showApp(sess) {
+  document.getElementById('loginOverlay').style.display = 'none';
+  document.getElementById('mainApp').style.display = '';
+  document.getElementById('pcuTag').textContent = '🏥 ' + sess.pcu_name;
+  if (['admin','superadmin'].includes(sess.role))
+    document.getElementById('adminBtnTop').style.display = '';
+
+  // Today
+  const now = new Date();
+  const todayThai = now.getDate() + ' ' + THAI_MONTHS[now.getMonth()+1] + ' ' + (now.getFullYear()+543);
+  document.getElementById('todayThai').textContent = todayThai;
+  document.getElementById('todayEng').textContent  = DAYS_EN[now.getDay()];
+
+  curYear  = now.getFullYear();
+  curMonth = now.getMonth() + 1;
+  loadData();
+}
+
+// ── Login ─────────────────────────────────────
+async function doLogin() {
+  const u   = document.getElementById('loginU').value.trim();
+  const p   = document.getElementById('loginP').value;
+  const btn = document.getElementById('loginBtn');
+  const err = document.getElementById('loginErr');
+  if (!u || !p) { showLoginErr('กรุณากรอก Username และ Password'); return; }
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-spin"></span> กำลังเข้าสู่ระบบ...';
+  err.className = 'alert alert-err';
+  const res = await api('login', { username:u, password:p });
+  btn.disabled = false; btn.textContent = 'เข้าสู่ระบบ';
+  if (!res?.ok) { showLoginErr(res?.error||'เกิดข้อผิดพลาด'); return; }
+  setSession(res.data);
+  showApp(res.data);
+}
+
+function showLoginErr(msg) {
+  const el = document.getElementById('loginErr');
+  el.textContent = '⚠️ ' + msg;
+  el.className = 'alert alert-err show';
+}
+
+async function doLogout() {
+  await api('logout');
+  clearSession();
+  document.getElementById('mainApp').style.display = 'none';
+  document.getElementById('loginOverlay').style.display = 'flex';
+}
+
+// ── Load Data ─────────────────────────────────
+async function loadData() {
+  const [statsR, itemsDrug, itemsVacc] = await Promise.all([
+    api('getStats'),
+    api('getItems', { type:'drug', filter:'all' }),
+    api('getItems', { type:'vaccine', filter:'all' }),
+  ]);
+
+  if (statsR?.ok) {
+    const s = statsR.data;
+    document.getElementById('sExp').textContent = s.expired;
+    document.getElementById('sW1').textContent  = s.d7;
+    document.getElementById('sM1').textContent  = s.d30;
+  }
+
+  allItems = [
+    ...(itemsDrug?.ok  ? itemsDrug.data  : []),
+    ...(itemsVacc?.ok ? itemsVacc.data : []),
+  ];
+
+  renderCalendar();
+  renderUpcoming();
+}
+
+// ── Calendar ──────────────────────────────────
+function changeMonth(d) {
+  curMonth += d;
+  if (curMonth > 12) { curMonth = 1;  curYear++; }
+  if (curMonth < 1)  { curMonth = 12; curYear--; }
+  renderCalendar();
+}
+
+function renderCalendar() {
+  document.getElementById('calMonthName').textContent = THAI_MONTHS[curMonth];
+  document.getElementById('calYearName').textContent  = 'พ.ศ. ' + (curYear+543) + ' (ค.ศ. ' + curYear + ')';
+
+  const today   = new Date();
+  const firstDay= new Date(curYear, curMonth-1, 1);
+  const lastDay = new Date(curYear, curMonth, 0);
+  const startDow= firstDay.getDay(); // 0=Sun
+  const daysInM = lastDay.getDate();
+
+  // Group items by date
+  const byDate = {};
+  allItems.forEach(item => {
+    const d = item.expiry_date;
+    if (d) { if (!byDate[d]) byDate[d] = []; byDate[d].push(item); }
+  });
+
+  let html = '';
+  // ช่องก่อนวันที่ 1
+  const prevLast = new Date(curYear, curMonth-1, 0).getDate();
+  for (let i = startDow - 1; i >= 0; i--) {
+    const d   = prevLast - i;
+    const thD = d + ' ' + THAI_MONTHS_SHORT[curMonth === 1 ? 12 : curMonth-1];
+    html += `<div class="cal-cell other-month"><div class="cal-date">${d}</div><div class="cal-date-thai">${thD}</div></div>`;
+  }
+
+  for (let d = 1; d <= daysInM; d++) {
+    const date    = new Date(curYear, curMonth-1, d);
+    const dateStr = `${curYear}-${String(curMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isToday = d===today.getDate() && curMonth===today.getMonth()+1 && curYear===today.getFullYear();
+    const dow     = date.getDay();
+    const thD     = d + ' ' + THAI_MONTHS_SHORT[curMonth];
+
+    let cls = 'cal-cell';
+    if (isToday)   cls += ' today';
+    if (dow === 0) cls += ' sunday';
+    if (dow === 6) cls += ' saturday';
+
+    const items  = byDate[dateStr] || [];
+    const evHtml = items.slice(0,3).map(item => {
+      const dl = item.days_left ?? Math.ceil((new Date(item.expiry_date)-new Date())/86400000);
+      const ec = dl < 0 ? 'ev-expired' : dl <= 7 ? 'ev-w1' : dl <= 30 ? 'ev-m1' : 'ev-m6';
+      const icon = item.item_type==='vaccine'?'💉':'💊';
+      return `<div class="cal-event ${ec}" title="${item.drug_name}">${icon} ${item.drug_name}</div>`;
+    }).join('') + (items.length > 3 ? `<div class="cal-event" style="background:#f1f5f9;color:#64748b">+${items.length-3} รายการ</div>` : '');
+
+    html += `<div class="${cls}" onclick="showPopup('${dateStr}','${thD}')">
+      <div class="cal-date">${d}</div>
+      <div class="cal-date-thai" style="${isToday?'display:none':''}">${thD}</div>
+      <div class="cal-events">${evHtml}</div>
+    </div>`;
+  }
+
+  // ช่องหลัง
+  const remaining = (7 - (startDow + daysInM) % 7) % 7;
+  for (let d = 1; d <= remaining; d++) {
+    const thD = d + ' ' + THAI_MONTHS_SHORT[curMonth === 12 ? 1 : curMonth+1];
+    html += `<div class="cal-cell other-month"><div class="cal-date">${d}</div><div class="cal-date-thai">${thD}</div></div>`;
+  }
+
+  document.getElementById('calCells').innerHTML = html;
+}
+
+// ── Upcoming ──────────────────────────────────
+function renderUpcoming() {
+  const soon = allItems
+    .filter(r => r.days_left !== undefined ? r.days_left <= 30 && r.days_left >= 0 : true)
+    .sort((a,b) => new Date(a.expiry_date)-new Date(b.expiry_date))
+    .slice(0, 5);
+
+  if (!soon.length) {
+    document.getElementById('upcomingList').innerHTML =
+      '<div style="text-align:center;padding:1rem;color:var(--sub);font-size:.85rem">✅ ไม่มียาใกล้หมดอายุ</div>';
+    return;
+  }
+  document.getElementById('upcomingList').innerHTML = soon.map(r => {
+    const icon  = r.item_type==='vaccine'?'💉':'💊';
+    const sub   = r.item_type==='vaccine' ? r.vaccine_group : r.dosage_form;
+    const dl    = r.days_left ?? 0;
+    const bc    = dl <= 7 ? '#fee2e2;color:#7f1d1d' : dl <= 30 ? '#fed7aa;color:#92400e' : '#dcfce7;color:#14532d';
+    const tDate = thaiDate(r.expiry_date);
+    return `<div class="upcoming-item" onclick="window.location='dashboard.html'">
+      <div class="up-icon">${icon}</div>
+      <div style="flex:1;min-width:0">
+        <div class="up-name">${esc(r.drug_name)}</div>
+        <div class="up-meta">${esc(sub||'')} | ${tDate}</div>
+      </div>
+      <div class="up-badge" style="background:${bc}">อีก ${dl} วัน</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Popup ─────────────────────────────────────
+function showPopup(dateStr, thD) {
+  const items = allItems.filter(r => r.expiry_date === dateStr);
+  if (!items.length) return;
+  const thM = ['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  const d   = new Date(dateStr);
+  const fullDate = d.getDate() + ' ' + THAI_MONTHS[d.getMonth()+1] + ' ' + (d.getFullYear()+543);
+  document.getElementById('popTitle').textContent  = '📅 ' + fullDate;
+  document.getElementById('popContent').innerHTML  = items.map(r => {
+    const dl   = r.days_left ?? Math.ceil((new Date(r.expiry_date)-new Date())/86400000);
+    const icon = r.item_type==='vaccine'?'💉':'💊';
+    const sub  = r.item_type==='vaccine' ? r.vaccine_group : r.dosage_form;
+    return `<div class="popup-item">
+      <div style="font-size:1.2rem">${icon}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:.88rem">${esc(r.drug_name)}</div>
+        <div style="font-size:.78rem;color:var(--sub)">${esc(sub||'')} ${r.lot_number?'| '+r.lot_number:''}</div>
+      </div>
+      ${statusBadge(dl)}
+    </div>`;
+  }).join('');
+  document.getElementById('evPopup').classList.add('show');
+}
+
+function closePopup(e) {
+  if (e.target.id === 'evPopup') document.getElementById('evPopup').classList.remove('show');
+}
+
+function goFilter(f) {
+  window.location.href = 'dashboard.html?filter=' + f;
+}
+</script>
+</body>
+</html>
