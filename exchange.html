@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>แลกยาใกล้หมดอายุ</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="loader"><div class="spinner"></div>กำลังโหลด...</div>
+<div class="topbar">
+  <h1>🔄 แลกยาใกล้หมดอายุ</h1>
+  <a href="dashboard.html" class="tb-btn">← กลับ</a>
+</div>
+<div class="wrap">
+  <!-- เงื่อนไข -->
+  <div class="card" style="background:#fefce8;border:1.5px solid #fde047;padding:.9rem 1.1rem;margin-bottom:.9rem">
+    <div style="font-size:.88rem;font-weight:700;color:#78350f;margin-bottom:.4rem">📋 เงื่อนไขการแลกยา</div>
+    <div style="font-size:.83rem;color:#92400e">
+      🟢 ยาเหลือ <strong>91–180 วัน</strong> → แลกคืนได้ <strong>100%</strong><br>
+      🟡 ยาเหลือ <strong>≤ 90 วัน</strong> → แลกคืนได้ <strong>50%</strong>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:.9rem">
+
+    <!-- รายการยาที่แลกได้ -->
+    <div class="card">
+      <div class="card-title">💊 รายการยาที่แลกได้</div>
+      <div style="font-size:.8rem;color:var(--sub);margin-bottom:.6rem">เฉพาะยาที่เหลือ ≤ 180 วัน</div>
+      <div style="max-height:320px;overflow-y:auto" id="eligibleList">
+        <div style="text-align:center;padding:1.5rem;color:var(--sub)">⏳ กำลังโหลด...</div>
+      </div>
+    </div>
+
+    <!-- ฟอร์มขอแลก -->
+    <div class="card">
+      <div class="card-title">📝 ส่งคำขอแลกยา</div>
+      <div class="alert alert-ok"  id="exOk"></div>
+      <div class="alert alert-err" id="exErr"></div>
+      <div class="alert alert-warn show" id="selWarn">กรุณาเลือกรายการยาจากด้านซ้ายก่อน</div>
+
+      <div id="selInfo" style="display:none;background:#f0fdf4;border:1.5px solid #6ee7b7;border-radius:10px;padding:.8rem;margin-bottom:.9rem">
+        <div style="font-weight:700;font-size:.9rem" id="selDrug"></div>
+        <div style="font-size:.8rem;color:var(--sub);margin-top:.3rem" id="selMeta"></div>
+      </div>
+      <input type="hidden" id="selId">
+
+      <div class="field">
+        <label>จำนวนที่ต้องการแลก</label>
+        <div style="display:flex;gap:.4rem">
+          <input type="number" id="exQty" placeholder="จำนวน" min="1" style="flex:1">
+          <span style="padding:.62rem .5rem;font-size:.88rem;color:var(--sub);white-space:nowrap" id="selUnit"></span>
+        </div>
+      </div>
+      <div class="field">
+        <label>หมายเหตุ</label>
+        <textarea id="exNote" placeholder="เหตุผล / รายละเอียด"></textarea>
+      </div>
+      <button class="btn btn-teal" id="exBtn" onclick="submitExchange()" disabled style="width:100%;justify-content:center">
+        🔄 ส่งคำขอแลกยา
+      </button>
+    </div>
+  </div>
+
+  <!-- ประวัติ -->
+  <div class="card" style="margin-top:.9rem">
+    <div class="card-title">📋 ประวัติคำขอแลกยา</div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>ชื่อยา</th><th>วันเหลือ</th><th>%แลก</th><th>จำนวน</th><th>สถานะ</th><th>วันที่</th></tr></thead>
+        <tbody id="exHistory"><tr class="empty-row"><td colspan="6">⏳</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<style>
+.eligible-item{padding:.65rem .9rem;border-bottom:1px solid var(--border);cursor:pointer;transition:.1s}
+.eligible-item:hover,.eligible-item.sel{background:#f0fdf4}
+.eligible-item.sel{border-left:3px solid var(--teal)}
+@media(max-width:780px){.wrap>div[style*=grid]{grid-template-columns:1fr}}
+</style>
+
+<script src="config.js"></script>
+<script src="api.js"></script>
+<script>
+const sess = requireAuth(); if (!sess) throw 0;
+let selDrug = null;
+
+document.addEventListener('DOMContentLoaded', async () => {
+  showLoader(true);
+  await Promise.all([loadEligible(), loadHistory()]);
+  showLoader(false);
+});
+
+async function loadEligible() {
+  const r = await api('getItems', { type:'drug', filter:'m6' });
+  const box = document.getElementById('eligibleList');
+  if (!r?.ok || !r.data.length) {
+    box.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--sub)">ไม่มียาที่ใกล้หมดอายุ</div>';
+    return;
+  }
+  box.innerHTML = r.data.map(d => {
+    const ratio = d.days_left <= 90 ? 50 : 100;
+    const col   = ratio === 100 ? 'green' : 'orange';
+    return `<div class="eligible-item" onclick="selectDrug(${JSON.stringify(d).replace(/"/g,'&quot;')}, this)">
+      <div style="font-weight:700;font-size:.87rem">${esc(d.drug_name)}</div>
+      <div style="font-size:.78rem;color:var(--sub);margin-top:.2rem;display:flex;gap:.5rem">
+        <span>${esc(d.dosage_form||'-')}</span>
+        <span style="color:${ratio===100?'var(--green)':'var(--orange)'};font-weight:700">แลกได้ ${ratio}%</span>
+        ${statusBadge(d.days_left)}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function selectDrug(d, el) {
+  selDrug = d;
+  document.querySelectorAll('.eligible-item').forEach(e=>e.classList.remove('sel'));
+  el.classList.add('sel');
+  const ratio = d.days_left <= 90 ? 50 : 100;
+  document.getElementById('selId').value = d.id;
+  document.getElementById('selDrug').textContent = d.drug_name;
+  document.getElementById('selMeta').textContent =
+    `เหลือ ${d.days_left} วัน | แลกได้ ${ratio}% | ${d.lot_number||'-'}`;
+  document.getElementById('selUnit').textContent = d.unit||'';
+  document.getElementById('selInfo').style.display = '';
+  document.getElementById('selWarn').style.display = 'none';
+  document.getElementById('exBtn').disabled = false;
+}
+
+async function submitExchange() {
+  const id   = document.getElementById('selId').value;
+  const qty  = document.getElementById('exQty').value;
+  const note = document.getElementById('exNote').value.trim();
+  if (!id)  { showMsg('exErr','กรุณาเลือกรายการยา'); return; }
+  if (!qty) { showMsg('exErr','กรุณาระบุจำนวน'); return; }
+
+  const btn = document.getElementById('exBtn');
+  btn.disabled=true; btn.innerHTML='<span class="btn-spin"></span> กำลังส่ง...';
+
+  const r = await api('saveExchange', { drug_id:id, quantity:qty, note });
+  btn.disabled=false; btn.innerHTML='🔄 ส่งคำขอแลกยา';
+
+  if (!r?.ok) { showMsg('exErr',r?.error); return; }
+  showMsg('exOk', r.data.message);
+  document.getElementById('exQty').value = '';
+  document.getElementById('exNote').value = '';
+  await loadHistory();
+}
+
+async function loadHistory() {
+  const r = await api('getExchanges', {});
+  if (!r?.ok) return;
+  const stMap = { pending:'⏳ รอดำเนินการ', approved:'✅ อนุมัติ', rejected:'❌ ปฏิเสธ' };
+  const stBadge = { pending:'badge orange', approved:'badge green', rejected:'badge expired' };
+  document.getElementById('exHistory').innerHTML = r.data.length
+    ? r.data.map(e=>`<tr>
+        <td><strong style="font-size:.83rem">${esc(e.drug_name)}</strong></td>
+        <td>${e.days_to_expiry} วัน</td>
+        <td><span class="badge ${e.ratio===100?'green':'orange'}">${e.ratio}%</span></td>
+        <td>${e.quantity}</td>
+        <td><span class="${stBadge[e.status]||'badge gray'}">${stMap[e.status]||e.status}</span></td>
+        <td style="font-size:.78rem">${e.created_at?e.created_at.substring(0,10):'-'}</td>
+      </tr>`).join('')
+    : '<tr class="empty-row"><td colspan="6">ยังไม่มีประวัติ</td></tr>';
+}
+
+function showMsg(id,msg) {
+  const el=document.getElementById(id);
+  const isOk=id.includes('Ok');
+  el.textContent=(isOk?'✅ ':'❌ ')+msg;
+  el.className=`alert alert-${isOk?'ok':'err'} show`;
+  setTimeout(()=>el.className=el.className.replace(' show',''),4000);
+}
+</script>
+</body>
+</html>

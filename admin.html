@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin – ยาหมดอายุ รพ.สต.</title>
+<link rel="stylesheet" href="style.css">
+<style>
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: .9rem; }
+@media(max-width:780px){ .grid2 { grid-template-columns: 1fr; } }
+.tabs { display:flex; gap:.4rem; margin-bottom:.9rem; }
+.tab { padding:.5rem 1.1rem; border-radius:8px; font-weight:700; font-size:.88rem; cursor:pointer; background:#fff; color:var(--sub); border:2px solid var(--border); transition:.15s; }
+.tab.on { background:var(--teal); color:#fff; border-color:var(--teal); }
+.log-row td { font-size:.78rem; }
+.role-badge { display:inline-block; padding:.1rem .45rem; border-radius:8px; font-size:.72rem; font-weight:700; }
+</style>
+</head>
+<body>
+<div id="loader"><div class="spinner"></div>กำลังโหลด...</div>
+<div class="topbar">
+  <h1>⚙️ Admin Panel – รพ.สต.</h1>
+  <a href="dashboard.html" class="tb-btn">← กลับ</a>
+  <button class="tb-btn" onclick="sendTest()">📣 ทดสอบ LINE</button>
+</div>
+<div class="wrap">
+  <div class="tabs">
+    <div class="tab on" id="t1" onclick="showTab(1)">🏥 รพ.สต. (<span id="cPcu">–</span>)</div>
+    <div class="tab"    id="t2" onclick="showTab(2)">👥 Users (<span id="cUser">–</span>)</div>
+    <div class="tab"    id="t3" onclick="showTab(3)">📋 Log การใช้งาน</div>
+  </div>
+
+  <!-- ══ TAB 1 – PCU ══════════════════════════ -->
+  <div id="sec1">
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title" id="pcuFormTitle">➕ เพิ่ม รพ.สต.</div>
+      <div class="alert alert-ok"  id="pcuOk"></div>
+      <div class="alert alert-err" id="pcuErr"></div>
+      <input type="hidden" id="pcuId">
+      <div class="row2">
+        <div class="field" style="flex:0 0 110px">
+          <label>รหัส *</label>
+          <input type="text" id="pcuCode" placeholder="10716">
+        </div>
+        <div class="field">
+          <label>ชื่อ รพ.สต. *</label>
+          <input type="text" id="pcuName" placeholder="รพ.สต.บ้านช้าง">
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>เบอร์โทร</label>
+          <input type="text" id="pcuPhone">
+        </div>
+        <div class="field">
+          <label>ที่อยู่</label>
+          <input type="text" id="pcuAddr">
+        </div>
+      </div>
+      <div style="display:flex;gap:.5rem">
+        <button class="btn btn-teal" onclick="savePcu()">💾 บันทึก</button>
+        <button class="btn btn-gray" id="pcuCancel" style="display:none" onclick="resetPcu()">ยกเลิก</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">📋 รายชื่อ รพ.สต.</div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>รหัส</th><th>ชื่อ</th><th>เบอร์</th><th></th></tr></thead>
+          <tbody id="pcuTbl"><tr class="empty-row"><td colspan="4">⏳</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <!-- ══ TAB 2 – USERS ════════════════════════ -->
+  <div id="sec2" style="display:none">
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title" id="userFormTitle">➕ เพิ่ม User</div>
+      <div class="alert alert-ok"  id="userOk"></div>
+      <div class="alert alert-err" id="userErr"></div>
+      <input type="hidden" id="userId">
+      <div class="field">
+        <label>สังกัด รพ.สต. *</label>
+        <select id="userPcu"><option value="">— เลือก รพ.สต. —</option></select>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>Username *</label>
+          <input type="text" id="userU" placeholder="username">
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input type="password" id="userP" placeholder="(เว้นว่าง=ไม่เปลี่ยน)">
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>ชื่อ-นามสกุล</label>
+          <input type="text" id="userN" placeholder="ชื่อผู้ใช้">
+        </div>
+        <div class="field" style="flex:0 0 120px">
+          <label>บทบาท</label>
+          <select id="userR">
+            <option value="officer">เจ้าหน้าที่</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:.5rem">
+        <button class="btn btn-teal" onclick="saveUser()">💾 บันทึก</button>
+        <button class="btn btn-gray" id="userCancel" style="display:none" onclick="resetUser()">ยกเลิก</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">👥 Users ทั้งหมด</div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>รพ.สต.</th><th>Username</th><th>บทบาท</th><th>Login ล่าสุด</th><th></th></tr></thead>
+          <tbody id="userTbl"><tr class="empty-row"><td colspan="5">⏳</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <!-- ══ TAB 3 – LOGS ═════════════════════════ -->
+  <div id="sec3" style="display:none">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem">
+      <div class="card-title" style="margin-bottom:0">📋 Log การใช้งาน</div>
+      <button class="btn btn-teal btn-sm" onclick="loadLogs()">🔄 รีเฟรช</button>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>เวลา</th><th>รพ.สต.</th><th>ผู้ใช้</th><th>Action</th><th>รายละเอียด</th></tr></thead>
+        <tbody id="logTbl"><tr class="empty-row"><td colspan="5">⏳</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script src="api.js"></script>
+<script>
+const sess = requireAdmin(); if (!sess) throw 0;
+let pcus = [];
+let users = [];
+
+document.addEventListener('DOMContentLoaded', async () => {
+  showLoader(true);
+  await Promise.all([loadPcus(), loadUsers()]);
+  showLoader(false);
+});
+
+// ── Tabs ──────────────────────────────────────
+function showTab(n) {
+  [1,2,3].forEach(i => {
+    document.getElementById('sec'+i).style.display = i===n?'':'none';
+    document.getElementById('t'+i).classList.toggle('on', i===n);
+  });
+  if (n===3) loadLogs();
+}
+
+// ── PCU ───────────────────────────────────────
+async function loadPcus() {
+  const r = await api('getPcuList');
+  if (!r?.ok) return;
+  pcus = r.data;
+  document.getElementById('cPcu').textContent = pcus.length;
+  // update dropdown
+  const sel = document.getElementById('userPcu');
+  const old = sel.value;
+  sel.innerHTML = '<option value="">— เลือก รพ.สต. —</option>'
+    + pcus.map(p=>`<option value="${p.id}">${esc(p.pcu_code+' – '+p.pcu_name)}</option>`).join('');
+  sel.value = old;
+
+  document.getElementById('pcuTbl').innerHTML = pcus.length
+    ? pcus.map(p=>`<tr>
+        <td><span class="badge blue">${esc(p.pcu_code)}</span></td>
+        <td>${esc(p.pcu_name)}</td>
+        <td style="font-size:.8rem">${esc(p.phone||'-')}</td>
+        <td><div class="act">
+          <button class="btn btn-gray btn-sm" onclick="editPcu('${p.id}')">✏️</button>
+          <button class="btn btn-red btn-sm"  onclick="delPcu('${p.id}','${esc(p.pcu_name)}')">🗑️</button>
+        </div></td>
+      </tr>`).join('')
+    : '<tr class="empty-row"><td colspan="4">ยังไม่มี รพ.สต.</td></tr>';
+}
+
+function editPcu(id) {
+  const p = pcus.find(x=>x.id===id); if(!p) return;
+  document.getElementById('pcuId').value    = id;
+  document.getElementById('pcuCode').value  = p.pcu_code;
+  document.getElementById('pcuName').value  = p.pcu_name;
+  document.getElementById('pcuPhone').value = p.phone||'';
+  document.getElementById('pcuAddr').value  = p.address||'';
+  document.getElementById('pcuFormTitle').textContent = '✏️ แก้ไข รพ.สต.';
+  document.getElementById('pcuCancel').style.display='';
+  document.getElementById('pcuCode').focus();
+}
+function resetPcu() {
+  ['pcuId','pcuCode','pcuName','pcuPhone','pcuAddr'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('pcuFormTitle').textContent='➕ เพิ่ม รพ.สต.';
+  document.getElementById('pcuCancel').style.display='none';
+}
+async function savePcu() {
+  const id=document.getElementById('pcuId').value;
+  const code=document.getElementById('pcuCode').value.trim();
+  const name=document.getElementById('pcuName').value.trim();
+  if(!code||!name){showMsg('pcuErr','กรุณากรอกรหัสและชื่อ');return;}
+  const r=await api('savePcu',{id,pcu_code:code,pcu_name:name,
+    phone:document.getElementById('pcuPhone').value.trim(),
+    address:document.getElementById('pcuAddr').value.trim()});
+  if(!r?.ok){showMsg('pcuErr',r?.error);return;}
+  showMsg('pcuOk',r.data.message); resetPcu(); await loadPcus();
+}
+async function delPcu(id,name) {
+  if(!confirm('ยืนยันลบ: '+name+'?'))return;
+  const r=await api('deletePcu',{id});
+  toast(r?.ok?'ลบสำเร็จ':r?.error, r?.ok?'ok':'err');
+  if(r?.ok) await loadPcus();
+}
+
+// ── USERS ─────────────────────────────────────
+async function loadUsers() {
+  const r=await api('getUsers');
+  if(!r?.ok) return;
+  users=r.data;
+  document.getElementById('cUser').textContent=users.length;
+  const roleColor = {officer:'green',admin:'blue',superadmin:'orange'};
+  const roleLabel = {officer:'เจ้าหน้าที่',admin:'Admin',superadmin:'Super Admin'};
+  document.getElementById('userTbl').innerHTML = users.length
+    ? users.map(u=>`<tr>
+        <td style="font-size:.8rem">${esc(u.pcu_name||'-')}</td>
+        <td><code style="font-size:.8rem">${esc(u.username)}</code><br>
+            <span style="font-size:.73rem;color:var(--sub)">${esc(u.display_name||'')}</span></td>
+        <td><span class="badge ${roleColor[u.role]||'gray'}">${roleLabel[u.role]||u.role}</span></td>
+        <td style="font-size:.75rem">${u.last_login?u.last_login.substring(0,16):'-'}</td>
+        <td><div class="act">
+          <button class="btn btn-gray btn-sm" onclick="editUser('${u.id}')">✏️</button>
+          <button class="btn btn-red btn-sm"  onclick="delUser('${u.id}','${esc(u.username)}')">🗑️</button>
+        </div></td>
+      </tr>`).join('')
+    : '<tr class="empty-row"><td colspan="5">ยังไม่มี User</td></tr>';
+}
+
+function editUser(id) {
+  const u=users.find(x=>x.id===id); if(!u) return;
+  document.getElementById('userId').value=id;
+  document.getElementById('userPcu').value=u.pcu_id;
+  document.getElementById('userU').value=u.username;
+  document.getElementById('userN').value=u.display_name||'';
+  document.getElementById('userR').value=u.role||'officer';
+  document.getElementById('userP').value='';
+  document.getElementById('userFormTitle').textContent='✏️ แก้ไข User';
+  document.getElementById('userCancel').style.display='';
+  document.getElementById('userU').focus();
+}
+function resetUser() {
+  ['userId','userU','userP','userN'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('userPcu').value=''; document.getElementById('userR').value='officer';
+  document.getElementById('userFormTitle').textContent='➕ เพิ่ม User';
+  document.getElementById('userCancel').style.display='none';
+}
+async function saveUser() {
+  const id=document.getElementById('userId').value;
+  const r=await api('saveUser',{
+    id,
+    pcu_id:       document.getElementById('userPcu').value,
+    username:     document.getElementById('userU').value.trim(),
+    password:     document.getElementById('userP').value,
+    display_name: document.getElementById('userN').value.trim(),
+    role:         document.getElementById('userR').value,
+  });
+  if(!r?.ok){showMsg('userErr',r?.error);return;}
+  showMsg('userOk',r.data.message); resetUser(); await loadUsers();
+}
+async function delUser(id,name) {
+  if(!confirm('ยืนยันลบ: '+name+'?'))return;
+  const r=await api('deleteUser',{id});
+  toast(r?.ok?'ลบสำเร็จ':r?.error, r?.ok?'ok':'err');
+  if(r?.ok) await loadUsers();
+}
+
+// ── LOGS ──────────────────────────────────────
+async function loadLogs() {
+  document.getElementById('logTbl').innerHTML='<tr class="empty-row"><td colspan="5">⏳ กำลังโหลด...</td></tr>';
+  const r=await api('getLogs',{limit:200});
+  if(!r?.ok) return;
+  const logs=r.data;
+  const actionLabel={
+    login:'🔑 Login', logout:'🔒 Logout',
+    add_item:'➕ เพิ่มรายการ', edit_item:'✏️ แก้ไขรายการ', delete_item:'🗑️ ลบรายการ',
+    add_pcu:'🏥 เพิ่ม รพ.สต.', edit_pcu:'✏️ แก้ไข รพ.สต.', delete_pcu:'🗑️ ลบ รพ.สต.',
+    add_user:'👤 เพิ่ม User', edit_user:'✏️ แก้ไข User', delete_user:'🗑️ ลบ User',
+    exchange_request:'🔄 ขอแลกยา', approve_exchange:'✅ อนุมัติแลก',
+    test_notify:'📣 ทดสอบ Notify',
+  };
+  document.getElementById('logTbl').innerHTML = logs.length
+    ? logs.map(l=>`<tr class="log-row">
+        <td>${l.timestamp?l.timestamp.substring(0,16):'-'}</td>
+        <td>${esc(l.pcu_name||'-')}</td>
+        <td>${esc(l.username||'-')}</td>
+        <td>${actionLabel[l.action]||l.action}</td>
+        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(l.detail)}">${esc(l.detail)}</td>
+      </tr>`).join('')
+    : '<tr class="empty-row"><td colspan="5">ไม่มี Log</td></tr>';
+}
+
+// ── Notify Test ───────────────────────────────
+async function sendTest() {
+  const r=await api('sendTestNotify');
+  toast(r?.ok?'ส่ง LINE สำเร็จ':r?.error, r?.ok?'ok':'err');
+}
+
+function showMsg(id, msg) {
+  const el=document.getElementById(id);
+  const isOk=id.includes('Ok');
+  el.textContent=(isOk?'✅ ':'❌ ')+msg;
+  el.className=`alert alert-${isOk?'ok':'err'} show`;
+  setTimeout(()=>el.className=el.className.replace(' show',''),4000);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>รายงาน – ยาหมดอายุ รพ.สต.</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="loader"><div class="spinner"></div>กำลังโหลด...</div>
+<div class="topbar">
+  <h1>📊 รายงานยาใกล้หมดอายุ</h1>
+  <a href="dashboard.html" class="tb-btn">← กลับ</a>
+  <button class="tb-btn" onclick="window.print()">🖨️ พิมพ์</button>
+</div>
+<div class="wrap">
+  <div class="card" style="padding:1rem">
+    <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center">
+      <label style="font-size:.83rem;font-weight:700">ช่วงเวลา</label>
+      <select id="selPeriod" class="btn btn-gray" style="font-weight:600" onchange="loadReport()">
+        <option value="30">ใน 1 เดือน</option>
+        <option value="90">ใน 3 เดือน</option>
+        <option value="180" selected>ใน 6 เดือน</option>
+      </select>
+      <label style="font-size:.83rem;font-weight:700">ประเภท</label>
+      <select id="selType" class="btn btn-gray" style="font-weight:600" onchange="loadReport()">
+        <option value="all">ทั้งหมด</option>
+        <option value="drug">💊 ยา</option>
+        <option value="vaccine">💉 วัคซีน</option>
+      </select>
+    </div>
+  </div>
+  <div class="stats" id="sumRow" style="margin-bottom:.8rem"></div>
+  <div class="count-info" id="repInfo"></div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>#</th><th>ประเภท</th><th>ชื่อ</th><th>รูปแบบ/กลุ่ม</th><th>Lot No.</th><th>จำนวน</th><th>วันหมดอายุ</th><th>วันที่เหลือ</th></tr></thead>
+      <tbody id="repBody"><tr class="empty-row"><td colspan="8">⏳ กำลังโหลด...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script src="api.js"></script>
+<script>
+const sess = requireAuth(); if (!sess) throw 0;
+document.addEventListener('DOMContentLoaded', loadReport);
+
+async function loadReport() {
+  const period = document.getElementById('selPeriod').value;
+  const type   = document.getElementById('selType').value;
+  showLoader(true);
+  const r = await api('getReport', { period, type });
+  showLoader(false);
+  if (!r?.ok) { document.getElementById('repBody').innerHTML=`<tr class="empty-row"><td colspan="8">❌ ${r?.error}</td></tr>`; return; }
+  const items = r.data;
+  const c7   = items.filter(i=>i.days_left<=7).length;
+  const c30  = items.filter(i=>i.days_left>7&&i.days_left<=30).length;
+  const c90  = items.filter(i=>i.days_left>30&&i.days_left<=90).length;
+  document.getElementById('sumRow').innerHTML =
+    `<div class="stat s-total" style="cursor:default"><div class="ico">📦</div><div><div class="num">${items.length}</div><div class="lbl">รวม</div></div></div>
+     <div class="stat s-w1" style="cursor:default"><div class="ico">🚨</div><div><div class="num">${c7}</div><div class="lbl">≤1 สัปดาห์</div></div></div>
+     <div class="stat s-m1" style="cursor:default"><div class="ico">🔴</div><div><div class="num">${c30}</div><div class="lbl">≤1 เดือน</div></div></div>
+     <div class="stat s-m3" style="cursor:default"><div class="ico">🟠</div><div><div class="num">${c90}</div><div class="lbl">≤3 เดือน</div></div></div>`;
+  const pLabel = {30:'1 เดือน',90:'3 เดือน',180:'6 เดือน'}[period];
+  document.getElementById('repInfo').textContent = `ภายใน ${pLabel} | ${items.length} รายการ`;
+  document.getElementById('repBody').innerHTML = items.length
+    ? items.map((r,i)=>`<tr>
+        <td>${i+1}</td>
+        <td>${r.item_type==='drug'?'💊':'💉'}</td>
+        <td><strong>${esc(r.drug_name)}</strong></td>
+        <td><span class="badge gray">${esc(r.item_type==='drug'?r.dosage_form:r.vaccine_group)}</span></td>
+        <td>${esc(r.lot_number||'-')}</td>
+        <td>${esc((r.quantity||'')+(r.unit||''))}</td>
+        <td>${thaiDate(r.expiry_date)}</td>
+        <td>${statusBadge(r.days_left)}</td>
+      </tr>`).join('')
+    : '<tr class="empty-row"><td colspan="8">ไม่มีข้อมูล</td></tr>';
+}
+</script>
+</body>
+</html>

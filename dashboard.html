@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dashboard – ยาหมดอายุ รพ.สต.</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="loader"><div class="spinner"></div>กำลังโหลด...</div>
+
+<div class="topbar">
+  <h1>🏡 ระบบยาหมดอายุ</h1>
+  <span class="pcu-tag" id="pcuTag"></span>
+  <a href="form.html" class="tb-btn">+ เพิ่ม</a>
+  <a href="report.html" class="tb-btn">📊 รายงาน</a>
+  <a href="exchange.html" class="tb-btn">🔄 แลกยา</a>
+  <span id="adminBtn" style="display:none">
+    <a href="admin.html" class="tb-btn">⚙️ Admin</a>
+  </span>
+  <button class="tb-btn danger" onclick="doLogout()">ออก</button>
+</div>
+
+<div class="wrap">
+  <!-- Stats -->
+  <div class="stats" id="statsRow">
+    <div class="stat s-total"   onclick="loadItems('drug','all')">     <div class="ico">📦</div><div><div class="num" id="sTotal">–</div><div class="lbl">ทั้งหมด</div></div></div>
+    <div class="stat s-expired" onclick="loadItems(curType,'expired')"><div class="ico">💀</div><div><div class="num" id="sExp">–</div>  <div class="lbl">หมดแล้ว</div></div></div>
+    <div class="stat s-w1"      onclick="loadItems(curType,'w1')">     <div class="ico">🚨</div><div><div class="num" id="sW1">–</div>   <div class="lbl">≤1 สัปดาห์</div></div></div>
+    <div class="stat s-m1"      onclick="loadItems(curType,'m1')">     <div class="ico">🔴</div><div><div class="num" id="sM1">–</div>   <div class="lbl">≤1 เดือน</div></div></div>
+    <div class="stat s-m3"      onclick="loadItems(curType,'m3')">     <div class="ico">🟠</div><div><div class="num" id="sM3">–</div>   <div class="lbl">≤3 เดือน</div></div></div>
+    <div class="stat s-m6"      onclick="loadItems(curType,'m6')">     <div class="ico">🟡</div><div><div class="num" id="sM6">–</div>   <div class="lbl">≤6 เดือน</div></div></div>
+  </div>
+
+  <!-- Type tabs -->
+  <div class="type-tabs">
+    <a class="ttab on" id="tabDrug"    href="#" onclick="switchTab('drug');return false">💊 ยา (<span id="cDrug">–</span>)</a>
+    <a class="ttab"    id="tabVaccine" href="#" onclick="switchTab('vaccine');return false">💉 วัคซีน (<span id="cVacc">–</span>)</a>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <input type="text" id="searchBox" placeholder="🔍 ค้นหาชื่อยา, Lot..." oninput="onSearch(this.value)">
+    <button class="btn btn-teal btn-sm" onclick="loadItems()">ค้นหา</button>
+    <a href="form.html" class="btn btn-teal">+ เพิ่มรายการ</a>
+  </div>
+  <div class="count-info" id="countInfo"></div>
+
+  <!-- Table -->
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>ชื่อ</th>
+          <th>รูปแบบ/กลุ่ม</th>
+          <th>Lot No.</th>
+          <th>วันหมดอายุ</th>
+          <th>สถานะ</th>
+          <th>จัดการ</th>
+        </tr>
+      </thead>
+      <tbody id="tbody">
+        <tr class="empty-row"><td colspan="7">⏳ กำลังโหลด...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Delete confirm modal -->
+<div class="modal-bg" id="delModal">
+  <div class="modal">
+    <h3>🗑️ ยืนยันลบ</h3>
+    <p id="delMsg" style="margin-bottom:1rem;font-size:.9rem"></p>
+    <div class="modal-actions">
+      <button class="btn btn-red" id="delConfirmBtn">ยืนยันลบ</button>
+      <button class="btn btn-gray" onclick="closeModal('delModal')">ยกเลิก</button>
+    </div>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script src="api.js"></script>
+<script>
+const sess = requireAuth(); if (!sess) throw 0;
+let curType   = 'drug';
+let curFilter = 'all';
+let searchVal = '';
+let searchTimer;
+let deleteId  = '';
+
+// ── Init ──────────────────────────────────────
+document.getElementById('pcuTag').textContent = '🏥 ' + sess.pcu_name;
+if (['admin','superadmin'].includes(sess.role))
+  document.getElementById('adminBtn').style.display = '';
+
+window.addEventListener('DOMContentLoaded', async () => {
+  showLoader(true);
+  await Promise.all([loadStats(), loadItems()]);
+  showLoader(false);
+});
+
+// ── Stats ─────────────────────────────────────
+async function loadStats() {
+  const r = await api('getStats');
+  if (!r?.ok) return;
+  const s = r.data;
+  document.getElementById('sTotal').textContent = s.total;
+  document.getElementById('sExp').textContent   = s.expired;
+  document.getElementById('sW1').textContent    = s.d7;
+  document.getElementById('sM1').textContent    = s.d30;
+  document.getElementById('sM3').textContent    = s.d90;
+  document.getElementById('sM6').textContent    = s.d180;
+  document.getElementById('cDrug').textContent  = s.drug;
+  document.getElementById('cVacc').textContent  = s.vaccine;
+}
+
+// ── Tab ───────────────────────────────────────
+function switchTab(type) {
+  curType = type; curFilter = 'all';
+  document.getElementById('tabDrug').classList.toggle('on', type==='drug');
+  document.getElementById('tabVaccine').classList.toggle('on', type==='vaccine');
+  loadItems();
+}
+
+// ── Search ────────────────────────────────────
+function onSearch(v) {
+  searchVal = v;
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(loadItems, 400);
+}
+
+// ── Load items ────────────────────────────────
+async function loadItems(type, filter) {
+  if (type)   curType   = type;
+  if (filter) curFilter = filter;
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '<tr class="empty-row"><td colspan="7">⏳ กำลังโหลด...</td></tr>';
+
+  const r = await api('getItems', { type: curType, filter: curFilter, q: searchVal });
+  if (!r?.ok) {
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="7">❌ ${r?.error||'เกิดข้อผิดพลาด'}</td></tr>`;
+    return;
+  }
+  const items = r.data;
+  document.getElementById('countInfo').textContent = `แสดง ${items.length} รายการ`;
+
+  if (!items.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="7">ไม่มีข้อมูล</td></tr>';
+    return;
+  }
+  tbody.innerHTML = items.map((r,i) => {
+    const sub = r.item_type==='vaccine' ? r.vaccine_group : r.dosage_form;
+    return `<tr>
+      <td>${i+1}</td>
+      <td><strong>${esc(r.drug_name)}</strong></td>
+      <td><span class="badge gray">${esc(sub||'-')}</span></td>
+      <td style="font-size:.8rem">${esc(r.lot_number||'-')}</td>
+      <td style="white-space:nowrap">${thaiDate(r.expiry_date)}</td>
+      <td>${statusBadge(r.days_left)}</td>
+      <td><div class="act">
+        <a href="form.html?id=${r.id}" class="btn btn-gray btn-sm">✏️</a>
+        <button class="btn btn-red btn-sm" onclick="confirmDelete('${r.id}','${esc(r.drug_name)}')">🗑️</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Delete ────────────────────────────────────
+function confirmDelete(id, name) {
+  deleteId = id;
+  document.getElementById('delMsg').textContent = `ยืนยันลบ: ${name} ?`;
+  document.getElementById('delConfirmBtn').onclick = doDelete;
+  document.getElementById('delModal').classList.add('show');
+}
+
+async function doDelete() {
+  closeModal('delModal');
+  const r = await api('deleteItem', { id: deleteId });
+  if (r?.ok) { toast('ลบสำเร็จ'); await Promise.all([loadStats(), loadItems()]); }
+  else toast(r?.error||'เกิดข้อผิดพลาด', 'err');
+}
+
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+async function doLogout() {
+  await api('logout');
+  clearSession();
+  window.location.href = 'index.html';
+}
+</script>
+</body>
+</html>

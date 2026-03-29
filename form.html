@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>เพิ่ม/แก้ไขรายการ</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="loader"><div class="spinner"></div>กำลังโหลด...</div>
+<div class="topbar">
+  <h1>💊 <span id="pageTitle">เพิ่มรายการ</span></h1>
+  <a href="dashboard.html" class="tb-btn">← กลับ</a>
+</div>
+
+<div class="wrap">
+<div class="card">
+  <div class="card-title" id="cardTitle">➕ เพิ่มรายการใหม่</div>
+
+  <div class="alert alert-ok"  id="alertOk"></div>
+  <div class="alert alert-err" id="alertErr"></div>
+
+  <!-- type tabs -->
+  <div class="type-tabs">
+    <div class="ttab on" id="tabDrug"    onclick="setType('drug')">💊 ยา</div>
+    <div class="ttab"    id="tabVaccine" onclick="setType('vaccine')">💉 วัคซีน</div>
+  </div>
+
+  <!-- ══ ยา ══════════════════════════════════ -->
+  <div id="secDrug">
+    <div class="field">
+      <label>① รูปแบบยา <span class="req">*</span></label>
+      <select id="selDosage" onchange="onDosage()" disabled>
+        <option value="">— กำลังโหลด... —</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>② ชื่อยา <span class="req">*</span></label>
+      <div class="ac-box" style="display:flex;gap:.4rem;align-items:flex-start">
+        <div style="flex:1;position:relative">
+          <input type="text" id="inDrug" disabled placeholder="เลือกรูปแบบยาก่อน"
+                 autocomplete="off" oninput="onDrugInput(this.value)">
+          <div class="ac-drop" id="acDrop"></div>
+        </div>
+        <button class="btn btn-gray btn-sm" id="btnClrDrug" style="display:none" onclick="clrDrug()">✕</button>
+      </div>
+      <div class="hint" id="hintDrug">กรุณาเลือกรูปแบบยาก่อน</div>
+    </div>
+  </div>
+
+  <!-- ══ วัคซีน ══════════════════════════════ -->
+  <div id="secVacc" style="display:none">
+    <div class="field">
+      <label>① กลุ่มวัคซีน <span class="req">*</span></label>
+      <select id="selVGrp" onchange="onVGrp()" disabled>
+        <option value="">— กำลังโหลด... —</option>
+      </select>
+    </div>
+    <div id="vaccField" style="display:none" class="field">
+      <label>② เลือกวัคซีน <span class="req">*</span></label>
+      <div class="sel-badge" id="selBadge" style="display:none">
+        <span>💉</span><strong id="selBadgeTxt"></strong>
+        <button onclick="clrVacc()" style="background:none;border:none;cursor:pointer;color:#dc2626">✕</button>
+      </div>
+      <div class="vacc-box" id="vaccBox">
+        <div class="vacc-search-row">
+          <span>🔍</span>
+          <input type="text" id="vaccQ" placeholder="ค้นหาวัคซีน..." oninput="filterVacc(this.value)">
+        </div>
+        <div class="vacc-items" id="vaccItems">
+          <div class="vacc-none">เลือกกลุ่มก่อน</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ ข้อมูลร่วม ════════════════════════════ -->
+  <div class="row2">
+    <div class="field">
+      <label>Lot Number</label>
+      <input type="text" id="inLot" placeholder="เช่น LOT2024001">
+    </div>
+    <div class="field">
+      <label>จำนวน</label>
+      <div style="display:flex;gap:.4rem">
+        <input type="number" id="inQty" placeholder="จำนวน" style="flex:1;min-width:0">
+        <input type="text"   id="inUnit" placeholder="หน่วย" style="width:70px">
+      </div>
+    </div>
+  </div>
+  <div class="field">
+    <label>วันหมดอายุ <span class="req">*</span></label>
+    <input type="date" id="inExpiry" required>
+  </div>
+  <div class="field">
+    <label>หมายเหตุ</label>
+    <textarea id="inNotes" placeholder="ข้อมูลเพิ่มเติม..."></textarea>
+  </div>
+
+  <div style="display:flex;gap:.7rem;margin-top:1.2rem">
+    <button class="btn btn-teal" id="saveBtn" onclick="saveItem()" style="padding:.72rem 1.5rem;font-size:.95rem">💾 บันทึก</button>
+    <a href="dashboard.html" class="btn btn-gray" style="padding:.72rem 1.3rem;font-size:.95rem">ยกเลิก</a>
+  </div>
+</div>
+</div>
+
+<!-- Hidden -->
+<input type="hidden" id="hId">
+<input type="hidden" id="hType"   value="drug">
+<input type="hidden" id="hName"   value="">
+<input type="hidden" id="hCode"   value="">
+<input type="hidden" id="hDosage" value="">
+<input type="hidden" id="hVGrp"   value="">
+
+<script src="config.js"></script>
+<script src="api.js"></script>
+<script>
+const sess = requireAuth(); if (!sess) throw 0;
+let allVacc = [];
+let drugTimer;
+let editMode = false;
+
+document.addEventListener('DOMContentLoaded', async () => {
+  showLoader(true);
+  const params = new URLSearchParams(location.search);
+  const id = params.get('id');
+
+  // โหลด dosage forms ทันที
+  await loadDosageForms();
+
+  if (id) {
+    editMode = true;
+    document.getElementById('hId').value = id;
+    document.getElementById('pageTitle').textContent = 'แก้ไขรายการ';
+    document.getElementById('cardTitle').textContent  = '✏️ แก้ไขรายการ';
+    await loadItem(id);
+  }
+  showLoader(false);
+});
+
+// ── Dosage Forms ──────────────────────────────
+async function loadDosageForms() {
+  const sel = document.getElementById('selDosage');
+  const r   = await api('getRef', { type:'dosageforms' });
+  const forms = (r?.ok && r.data) ? r.data : ['TABLETS','CAPSULES','SYRUPS','INJECTIONS','SOLUTIONS','SUSPENSIONS','อื่นๆ'];
+  sel.innerHTML = '<option value="">— เลือกรูปแบบยาก่อน —</option>'
+    + forms.map(f=>`<option value="${esc(f)}">${f}</option>`).join('');
+  sel.disabled = false;
+}
+
+// ── Load item for edit ────────────────────────
+async function loadItem(id) {
+  const r = await api('getItem', { id });
+  if (!r?.ok) { alert(r?.error); return; }
+  const d = r.data;
+  document.getElementById('inLot').value    = d.lot_number  || '';
+  document.getElementById('inExpiry').value = d.expiry_date || '';
+  document.getElementById('inNotes').value  = d.notes       || '';
+  document.getElementById('inQty').value    = d.quantity    || '';
+  document.getElementById('inUnit').value   = d.unit        || '';
+  setType(d.item_type||'drug');
+  if (d.item_type==='drug') {
+    document.getElementById('selDosage').value = d.dosage_form||'';
+    document.getElementById('hDosage').value   = d.dosage_form||'';
+    document.getElementById('inDrug').value    = d.drug_name||'';
+    document.getElementById('hName').value     = d.drug_name||'';
+    document.getElementById('hCode').value     = d.drug_code||'';
+    if (d.dosage_form) {
+      document.getElementById('inDrug').disabled = false;
+      document.getElementById('hintDrug').textContent = 'รูปแบบ: '+d.dosage_form;
+      document.getElementById('btnClrDrug').style.display = 'block';
+    }
+  } else {
+    await loadVaccGroups(d.vaccine_group, d.drug_name);
+  }
+}
+
+// ── Type ──────────────────────────────────────
+function setType(t) {
+  document.getElementById('hType').value = t;
+  document.getElementById('secDrug').style.display  = t==='drug'?'':'none';
+  document.getElementById('secVacc').style.display  = t==='vaccine'?'':'none';
+  document.getElementById('tabDrug').classList.toggle('on', t==='drug');
+  document.getElementById('tabVaccine').classList.toggle('on', t==='vaccine');
+  if (t==='vaccine') loadVaccGroups();
+}
+
+// ── Drug autocomplete ─────────────────────────
+function onDosage() {
+  const df = document.getElementById('selDosage').value;
+  document.getElementById('hDosage').value = df;
+  const inp = document.getElementById('inDrug');
+  inp.value=''; document.getElementById('hCode').value='';
+  document.getElementById('btnClrDrug').style.display='none';
+  document.getElementById('acDrop').style.display='none';
+  if (df) {
+    inp.disabled=false;
+    inp.placeholder='พิมพ์ชื่อยา...';
+    document.getElementById('hintDrug').textContent='แสดงยารูปแบบ "'+df+'"';
+    inp.focus(); fetchDrugs('');
+  } else {
+    inp.disabled=true; inp.placeholder='เลือกรูปแบบยาก่อน';
+    document.getElementById('hintDrug').textContent='กรุณาเลือกรูปแบบยาก่อน';
+  }
+}
+
+function onDrugInput(v) {
+  document.getElementById('hName').value = v;
+  clearTimeout(drugTimer);
+  drugTimer = setTimeout(()=>fetchDrugs(v.trim()), 300);
+}
+
+async function fetchDrugs(q) {
+  const df  = document.getElementById('hDosage').value;
+  const box = document.getElementById('acDrop');
+  box.innerHTML = '<div class="ac-msg">🔄 ค้นหา...</div>';
+  box.style.display = 'block';
+  const r = await api('getRef', { type:'drugs', q, dosage_form:df });
+  if (!r?.ok || !r.data.length) {
+    box.innerHTML = '<div class="ac-msg">ไม่พบ – พิมพ์ชื่อเองได้</div>';
+    return;
+  }
+  box.innerHTML = r.data.map(d =>
+    `<div class="ac-item" onmousedown="pickDrug(event,'${d.drug_code}','${d.drug_name.replace(/'/g,"\\'")}','${d.dosage_form}')">
+      <span class="ac-name">${esc(d.drug_name)}</span>
+      <span class="ac-sub">${esc(d.drug_code)}</span>
+    </div>`).join('');
+  box.style.display='block';
+}
+
+function pickDrug(ev, code, name, form) {
+  ev.preventDefault();
+  document.getElementById('inDrug').value   = name;
+  document.getElementById('hName').value    = name;
+  document.getElementById('hCode').value    = code;
+  document.getElementById('hDosage').value  = form;
+  document.getElementById('acDrop').style.display = 'none';
+  document.getElementById('btnClrDrug').style.display='block';
+}
+
+function clrDrug() {
+  document.getElementById('inDrug').value='';
+  document.getElementById('hName').value='';
+  document.getElementById('hCode').value='';
+  document.getElementById('btnClrDrug').style.display='none';
+  fetchDrugs('');
+}
+
+// ── Vaccine ───────────────────────────────────
+async function loadVaccGroups(selGrp, selName) {
+  const sel = document.getElementById('selVGrp');
+  sel.disabled=true; sel.innerHTML='<option value="">— กำลังโหลด... —</option>';
+  const r  = await api('getRef', { type:'vacc_groups' });
+  const gs = (r?.ok && r.data) ? r.data : [];
+  sel.innerHTML = '<option value="">— เลือกกลุ่มวัคซีน —</option>'
+    + gs.map(g=>`<option value="${esc(g)}">💉 ${esc(g)}</option>`).join('');
+  sel.disabled=false;
+  if (selGrp) { sel.value=selGrp; await onVGrp(selName); }
+}
+
+async function onVGrp(restoreName) {
+  const g   = document.getElementById('selVGrp').value;
+  document.getElementById('hVGrp').value = g;
+  const fld = document.getElementById('vaccField');
+  if (!g) { fld.style.display='none'; return; }
+  fld.style.display='';
+  document.getElementById('vaccBox').style.display='block';
+  document.getElementById('selBadge').style.display='none';
+  document.getElementById('vaccItems').innerHTML='<div class="vacc-none">🔄 โหลด...</div>';
+  document.getElementById('vaccQ').value='';
+  const r  = await api('getRef', { type:'vacc_names', group:g });
+  allVacc  = (r?.ok && r.data) ? r.data : [];
+  renderVacc(allVacc, restoreName||'');
+}
+
+function renderVacc(list, hl) {
+  const box = document.getElementById('vaccItems');
+  if (!list.length) { box.innerHTML='<div class="vacc-none">ไม่พบวัคซีนในกลุ่มนี้</div>'; return; }
+  box.innerHTML = list.map(n => {
+    const m=n.match(/^(\d+)\s*[:：]\s*(.+)$/);
+    const code=m?m[1]:''; const name=m?m[2]:n;
+    const sel=hl&&n===hl;
+    return `<div class="vacc-item${sel?' sel':''}" onmousedown="pickVacc(event,'${n.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">
+      <span class="v-code">${esc(code)}</span>
+      <span class="v-name">${esc(name)}</span>
+      ${sel?'<span style="color:var(--teal)">✓</span>':''}
+    </div>`;
+  }).join('');
+}
+
+function filterVacc(q) {
+  renderVacc(q.trim()?allVacc.filter(n=>n.toLowerCase().includes(q.toLowerCase())):allVacc,'');
+}
+
+function pickVacc(ev, name) {
+  ev.preventDefault();
+  document.getElementById('hName').value = name;
+  const m=name.match(/^(\d+)\s*[:：]\s*(.+)$/);
+  document.getElementById('selBadgeTxt').textContent = m?m[1]+' : '+m[2]:name;
+  document.getElementById('selBadge').style.display='flex';
+  document.getElementById('vaccBox').style.display='none';
+}
+
+function clrVacc() {
+  document.getElementById('hName').value='';
+  document.getElementById('selBadge').style.display='none';
+  document.getElementById('vaccBox').style.display='block';
+  document.getElementById('vaccQ').value='';
+  renderVacc(allVacc,'');
+}
+
+// ── Save ──────────────────────────────────────
+async function saveItem() {
+  const type   = document.getElementById('hType').value;
+  const name   = type==='drug'?document.getElementById('inDrug').value.trim():document.getElementById('hName').value.trim();
+  const dosage = document.getElementById('hDosage').value;
+  const vGrp   = document.getElementById('hVGrp').value;
+  const expiry = document.getElementById('inExpiry').value;
+
+  if (!name)   { showAlert('err','กรุณาระบุชื่อ'); return; }
+  if (!expiry) { showAlert('err','กรุณาระบุวันหมดอายุ'); return; }
+  if (type==='drug'&&!dosage) { showAlert('err','กรุณาเลือกรูปแบบยา'); return; }
+  if (type==='vaccine'&&!vGrp){ showAlert('err','กรุณาเลือกกลุ่มวัคซีน'); return; }
+
+  const btn = document.getElementById('saveBtn');
+  btn.disabled=true; btn.innerHTML='<span class="btn-spin"></span> กำลังบันทึก...';
+
+  const r = await api('saveItem', {
+    id:            document.getElementById('hId').value||'',
+    item_type:     type,
+    drug_name:     name,
+    drug_code:     document.getElementById('hCode').value,
+    dosage_form:   dosage,
+    vaccine_group: vGrp,
+    lot_number:    document.getElementById('inLot').value.trim(),
+    expiry_date:   expiry,
+    quantity:      document.getElementById('inQty').value,
+    unit:          document.getElementById('inUnit').value.trim(),
+    notes:         document.getElementById('inNotes').value.trim(),
+  });
+
+  btn.disabled=false; btn.innerHTML='💾 บันทึก';
+
+  if (!r?.ok) { showAlert('err', r?.error||'เกิดข้อผิดพลาด'); return; }
+  showAlert('ok', r.data.message||'บันทึกสำเร็จ');
+  if (!editMode) {
+    ['inDrug','inLot','inExpiry','inNotes','inQty','inUnit'].forEach(id=>document.getElementById(id).value='');
+    ['hName','hCode','hDosage','hVGrp'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('selDosage').value='';
+    document.getElementById('inDrug').disabled=true;
+    document.getElementById('btnClrDrug').style.display='none';
+    document.getElementById('acDrop').style.display='none';
+    clrVacc();
+  }
+}
+
+function showAlert(type, msg) {
+  const id = type==='ok'?'alertOk':'alertErr';
+  const el = document.getElementById(id);
+  el.textContent=(type==='ok'?'✅ ':'❌ ')+msg;
+  el.className=`alert alert-${type==='ok'?'ok':'err'} show`;
+  setTimeout(()=>el.className=el.className.replace(' show',''),4000);
+  el.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.ac-box'))
+    document.getElementById('acDrop').style.display='none';
+});
+</script>
+</body>
+</html>
